@@ -28,6 +28,10 @@ func NewRouter(db *gorm.DB) *http.ServeMux {
         "/register",
         applyMiddleware(routeRegister(service), utilMiddleware),
     );
+    mux.HandleFunc(
+        "/me",
+        applyMiddleware(routeMe(service), authMiddleware),
+    );
 
     return mux;
 }
@@ -83,6 +87,17 @@ func routeRegister(service *appservice.AppService) http.HandlerFunc {
         response := responses.NewDataResponse("user", user);
         w.Header().Add("Content-Type", "application/json");
         w.Write(response.Json());
+    });
+}
+
+func routeMe(service *appservice.AppService) http.HandlerFunc {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        defer r.Body.Close();
+
+        auth := r.Context().Value("auth");
+
+        data, _ := json.Marshal(auth);
+        w.Write(data);
     });
 }
 

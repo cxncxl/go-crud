@@ -66,13 +66,13 @@ func DecodeJWT(inp string) (map[string]any, error) {
     );
     if err != nil {
         if errors.Is(err, jwt.ErrTokenSignatureInvalid) {
-            return map[string]any{}, InvalidJwtError;
+            return map[string]any{}, InvalidJwtError{};
         }
 
         return map[string]any{}, err;
     }
-    if !token.Valid {
-        return map[string]any{}, InvalidJwtError;
+    if token.Valid == false {
+        return map[string]any{}, InvalidJwtError{};
     }
 
     return claims, nil;
@@ -96,7 +96,7 @@ func HashPassword(pass string, salt string) string {
 func VerifyPass(pass string, hash string) (bool, error) {
     parts := strings.Split(hash, hashSaltDelimeter);
     if len(parts) < 2 {
-        return false, UnknownSaltError;
+        return false, UnknownSaltError{};
     }
 
     salt := parts[0];
@@ -123,5 +123,12 @@ var alphabet = []rune(
     "qwertyuiopasdfghjklzxcvbnmQWERTYUIOPASDFGHJKLZXCVBNM1234567890!@#$%^&*()",
 );
 
-var UnknownSaltError error;
-var InvalidJwtError error;
+type UnknownSaltError struct {};
+func (self UnknownSaltError) Error() string {
+    return "Unknown salt";
+}
+
+type InvalidJwtError struct {};
+func (self InvalidJwtError) Error() string {
+    return "Invalid JWT";
+}

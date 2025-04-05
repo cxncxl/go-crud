@@ -67,8 +67,7 @@ func JWTAutherMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
         token := parts[1];
         claims, err := auth_helpers.DecodeJWT(token);
-        fmt.Println(claims, err);
-        if err != nil && errors.Is(err, auth_helpers.InvalidJwtError) {
+        if err != nil && errors.Is(err, auth_helpers.InvalidJwtError{}) {
             error := responses.NewErrorResponse("unauthorized");
             http.Error(w, error.JsonString(), http.StatusUnauthorized);
             return;

@@ -51,7 +51,7 @@ func connectToDb() *gorm.DB {
 
 // starts http server or panics
 func startServer(db *gorm.DB) {
-    router := routes.NewRouter();
+    router := routes.NewRouter(db);
 
     const port int = 8080;
     addr := fmt.Sprintf(":%d", port);

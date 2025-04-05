@@ -137,6 +137,7 @@ func routeLogin(service *appservice.AppService) http.HandlerFunc {
         res := responses.NewDataResponse("auth", map[string]string{
             "auth_token": jwt,
         });
+        w.Header().Add("Content-Type", "application/json");
         w.WriteHeader(http.StatusCreated);
         w.Write(res.Json());
     });

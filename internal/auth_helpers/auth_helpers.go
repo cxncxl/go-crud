@@ -30,13 +30,13 @@ func SignJWT(data any) string {
         panic(err);
     }
 
-    var payload jwt.MapClaims;
+    payload := jwt.MapClaims{};
     for k := range dataMap {
         payload[k] = dataMap[k];
     }
 
     token := jwt.NewWithClaims(
-        jwt.SigningMethodES256, 
+        jwt.SigningMethodHS256, 
         payload,
     );
 

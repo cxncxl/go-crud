@@ -11,6 +11,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/cxcnxl/go-crud/internal/app_service"
+	auth_helpers "github.com/cxcnxl/go-crud/internal/auth_helpers"
 	"github.com/cxcnxl/go-crud/internal/dto"
 	"github.com/cxcnxl/go-crud/internal/middleware"
 	"github.com/cxcnxl/go-crud/internal/responses"
@@ -27,6 +28,10 @@ func NewRouter(db *gorm.DB) *http.ServeMux {
     mux.HandleFunc(
         "/register",
         applyMiddleware(routeRegister(service), utilMiddleware),
+    );
+    mux.HandleFunc(
+        "/login",
+        applyMiddleware(routeLogin(service), utilMiddleware),
     );
     mux.HandleFunc(
         "/me",
@@ -90,6 +95,53 @@ func routeRegister(service *appservice.AppService) http.HandlerFunc {
     });
 }
 
+func routeLogin(service *appservice.AppService) http.HandlerFunc {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        defer r.Body.Close();
+
+        if r.Method != "POST" {
+            error := responses.NewErrorResponse("Only POST method allowed");
+            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
+            return;
+        }
+
+        body, err := io.ReadAll(r.Body);
+        if err != nil {
+            error := responses.NewErrorResponse("Failed to read request body");
+            http.Error(w, error.JsonString(), http.StatusBadRequest);
+            return;
+        }
+        
+        var data dto.PostLoginDto;
+        if err := json.Unmarshal(body, &data); err != nil {
+            error := responses.NewErrorResponse("Invalid body");
+            http.Error(w, error.JsonString(), http.StatusBadRequest);
+            return;
+        }
+
+        user, err := service.LoginUser(data);
+        if err != nil {
+            error := responses.NewErrorResponse("unauthorized");
+            http.Error(w, error.JsonString(), http.StatusUnauthorized);
+            return;
+        }
+
+        jwtPayload := map[string]any {
+            "id": user.ID,
+            "email": user.Email,
+            "username": user.Username,
+        };
+
+        jwt := auth_helpers.SignJWT(jwtPayload);
+
+        res := responses.NewDataResponse("auth", map[string]string{
+            "auth_token": jwt,
+        });
+        w.WriteHeader(http.StatusCreated);
+        w.Write(res.Json());
+    });
+}
+
 func routeMe(service *appservice.AppService) http.HandlerFunc {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         defer r.Body.Close();
@@ -101,6 +153,7 @@ func routeMe(service *appservice.AppService) http.HandlerFunc {
     });
 }
 
+// TODO: move all bellow to middlewares package?
 func applyMiddleware (
     handler http.HandlerFunc,
     middlewares []middleware.Middleware,

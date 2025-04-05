@@ -41,6 +41,32 @@ func (self *AppService) CreateUser(data dto.CreateUserDto) (models.User, error) 
     return user, nil;
 }
 
+func (self *AppService) LoginUser(data dto.PostLoginDto) (models.User, error) {
+    var user models.User;
+    result := self.db.
+        Where(models.User{Email: data.Username}).
+        Or(models.User{Username: data.Username}).
+        First(&user);
+
+    if result.Error != nil {
+        return user, result.Error;
+    }
+
+    passwordValid, err := auth_helpers.VerifyPass(
+        data.Password,
+        user.PasswordHashed,
+    );
+    if err != nil {
+        return user, err;
+    }
+
+    if passwordValid == false {
+        return user, InvalidPasswordError{};
+    }
+
+    return user, nil;
+}
+
 func (self *AppService) GetUserByEmail(email string) (models.User, error) {
     user := models.User{
         Email: email,
@@ -88,4 +114,9 @@ func (self DuplicateUserEmailError) Error() string {
 type DuplicateUserUsernameError struct {}
 func (self DuplicateUserUsernameError) Error() string {
     return "duplicate_user_username";
+}
+
+type InvalidPasswordError struct {}
+func (self InvalidPasswordError) Error() string {
+    return "invalid_password";
 }

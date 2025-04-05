@@ -100,6 +100,8 @@ func applyMiddleware (
 }
 
 var utilMiddleware = []middleware.Middleware{
-    middleware.LoggerMiddleware,
     middleware.RecovererMiddleware,
+    middleware.LoggerMiddleware,
 };
+
+var authMiddleware = append(utilMiddleware, middleware.JWTAutherMiddleware);

@@ -17,44 +17,37 @@ import (
 	"github.com/cxcnxl/go-crud/internal/responses"
 )
 
-func NewRouter(db *gorm.DB) *http.ServeMux {
+func NewRouter(db *gorm.DB) *MethodHandler {
     mux := http.NewServeMux();
     service := appservice.NewAppService(db);
+    methodHandler := NewMethodHandler(mux);
 
-    mux.HandleFunc(
+    methodHandler.HandleFunc(
+        "GET",
         "/",
-        applyMiddleware(
-            routeIndex(service),
-            utilMiddleware,
-            middleware.GETHandlerMiddleware,
-        ),
+        routeIndex(service),
+        middleware.UtilMiddleware,
     );
-    mux.HandleFunc(
+    methodHandler.HandleFunc(
+        "POST",
         "/register",
-        applyMiddleware(
-            routeRegister(service),
-            utilMiddleware,
-            middleware.POSTHandlerMiddleware,
-        ),
+        routeRegister(service),
+        middleware.UtilMiddleware,
     );
-    mux.HandleFunc(
+    methodHandler.HandleFunc(
+        "POST",
         "/login",
-        applyMiddleware(
-            routeLogin(service),
-            utilMiddleware,
-            middleware.POSTHandlerMiddleware,
-        ),
+        routeLogin(service),
+        middleware.UtilMiddleware,
     );
-    mux.HandleFunc(
+    methodHandler.HandleFunc(
+        "GET",
         "/me",
-        applyMiddleware(
-            routeMe(service),
-            authMiddleware,
-            middleware.GETHandlerMiddleware,
-        ),
+        routeMe(service),
+        middleware.AuthMiddleware,
     );
 
-    return mux;
+    return methodHandler;
 }
 
 func routeIndex(_ *appservice.AppService) http.HandlerFunc {
@@ -109,12 +102,6 @@ func routeLogin(service *appservice.AppService) http.HandlerFunc {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         defer r.Body.Close();
 
-        if r.Method != "POST" {
-            error := responses.NewErrorResponse("Only POST method allowed");
-            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
-            return;
-        }
-
         body, err := io.ReadAll(r.Body);
         if err != nil {
             error := responses.NewErrorResponse("Failed to read request body");
@@ -164,26 +151,36 @@ func routeMe(_ *appservice.AppService) http.HandlerFunc {
     });
 }
 
-// TODO: move all bellow to middlewares package?
-//
-// TODO: better params design
-func applyMiddleware (
-    handler http.HandlerFunc,
-    middlewares []middleware.Middleware,
-    additions ...middleware.Middleware,
-) http.HandlerFunc {
-    wrapped := handler;
+// ---------- Utils -----------
 
-    for _, m := range append(middlewares, additions...) {
-        wrapped = m(wrapped);
-    }
-
-    return wrapped;
+type MethodHandler struct {
+    Mux *http.ServeMux
+    methods map[string]middleware.MiddlewareSet
 }
 
-var utilMiddleware = []middleware.Middleware{
-    middleware.RecovererMiddleware,
-    middleware.LoggerMiddleware,
-};
+func NewMethodHandler(mux *http.ServeMux) *MethodHandler {
+    return &MethodHandler{
+        mux,
+        make(map[string]middleware.MiddlewareSet),
+    };
+}
 
-var authMiddleware = append(utilMiddleware, middleware.JWTAutherMiddleware);
+func (self *MethodHandler) HandleFunc(
+    method string,
+    path string,
+    handler http.HandlerFunc,
+    middlewares middleware.MiddlewareSet,
+) {
+    self.methods[method+path] = middlewares;
+
+    wrapped := middleware.Wrap(handler, middlewares);
+
+    self.Mux.HandleFunc(path, func(w http.ResponseWriter, r *http.Request) {
+        if r.Method == method {
+            wrapped(w, r);
+        } else {
+            error := responses.NewErrorResponse("Method not allowed");
+            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
+        }
+    });
+}

@@ -15,6 +15,34 @@ import (
 )
 
 type Middleware func(n http.HandlerFunc) http.HandlerFunc;
+type MiddlewareSet []Middleware;
+
+func (self MiddlewareSet) With(others ...Middleware) MiddlewareSet {
+    return append(self, others...);
+}
+
+func Wrap (
+    handler http.HandlerFunc,
+    middlewares MiddlewareSet,
+) http.HandlerFunc {
+    wrapped := handler;
+
+    for i := len(middlewares) - 1; i >= 0; i-- {
+        wrapped = middlewares[i](wrapped)
+    }
+
+    return wrapped;
+}
+
+var UtilMiddleware = MiddlewareSet{
+    RecovererMiddleware,
+    LoggerMiddleware,
+    JSONResponserMiddleware, // (at least) for now all responses are JSON
+};
+
+var AuthMiddleware = append(UtilMiddleware, JWTAutherMiddleware);
+
+// --------- Implementations --------
 
 func RecovererMiddleware(next http.HandlerFunc) http.HandlerFunc {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -53,7 +81,9 @@ func JWTAutherMiddleware(next http.HandlerFunc) http.HandlerFunc {
         auth := r.Header.Get("Authorization");
         if auth == "" {
             error := responses.NewErrorResponse("unauthorized");
-            http.Error(w, error.JsonString(), http.StatusUnauthorized);
+            w.Header().Add("Content-Type", "application/json");
+            w.WriteHeader(http.StatusUnauthorized);
+            w.Write(error.Json());
             return;
         }
 
@@ -61,7 +91,9 @@ func JWTAutherMiddleware(next http.HandlerFunc) http.HandlerFunc {
         parts := strings.Split(auth, " ");
         if len(parts) < 2 {
             error := responses.NewErrorResponse("unauthorized");
-            http.Error(w, error.JsonString(), http.StatusUnauthorized);
+            w.Header().Add("Content-Type", "application/json");
+            w.WriteHeader(http.StatusUnauthorized);
+            w.Write(error.Json());
             return;
         }
 
@@ -69,7 +101,9 @@ func JWTAutherMiddleware(next http.HandlerFunc) http.HandlerFunc {
         claims, err := auth_helpers.DecodeJWT(token);
         if err != nil && errors.Is(err, auth_helpers.InvalidJwtError{}) {
             error := responses.NewErrorResponse("unauthorized");
-            http.Error(w, error.JsonString(), http.StatusUnauthorized);
+            w.Header().Add("Content-Type", "application/json");
+            w.WriteHeader(http.StatusUnauthorized);
+            w.Write(error.Json());
             return;
         }
 
@@ -78,6 +112,14 @@ func JWTAutherMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
         next.ServeHTTP(w, r);
     });
+}
+
+func JSONResponserMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Add("Content-Type", "application/json");
+        
+        next.ServeHTTP(w, r)
+    })
 }
 
 func POSTHandlerMiddleware(next http.HandlerFunc) http.HandlerFunc {

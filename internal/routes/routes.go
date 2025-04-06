@@ -23,19 +23,35 @@ func NewRouter(db *gorm.DB) *http.ServeMux {
 
     mux.HandleFunc(
         "/",
-        applyMiddleware(routeIndex(service), utilMiddleware),
+        applyMiddleware(
+            routeIndex(service),
+            utilMiddleware,
+            middleware.GETHandlerMiddleware,
+        ),
     );
     mux.HandleFunc(
         "/register",
-        applyMiddleware(routeRegister(service), utilMiddleware),
+        applyMiddleware(
+            routeRegister(service),
+            utilMiddleware,
+            middleware.POSTHandlerMiddleware,
+        ),
     );
     mux.HandleFunc(
         "/login",
-        applyMiddleware(routeLogin(service), utilMiddleware),
+        applyMiddleware(
+            routeLogin(service),
+            utilMiddleware,
+            middleware.POSTHandlerMiddleware,
+        ),
     );
     mux.HandleFunc(
         "/me",
-        applyMiddleware(routeMe(service), authMiddleware),
+        applyMiddleware(
+            routeMe(service),
+            authMiddleware,
+            middleware.GETHandlerMiddleware,
+        ),
     );
 
     return mux;
@@ -53,12 +69,6 @@ func routeIndex(_ *appservice.AppService) http.HandlerFunc {
 func routeRegister(service *appservice.AppService) http.HandlerFunc {
     return http.HandlerFunc(func (w http.ResponseWriter, r *http.Request) {
         defer r.Body.Close();
-
-        if r.Method != "POST" {
-            error := responses.NewErrorResponse("Only POST method allowed");
-            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
-            return;
-        }
 
         body, err := io.ReadAll(r.Body);
         if err != nil {
@@ -143,7 +153,7 @@ func routeLogin(service *appservice.AppService) http.HandlerFunc {
     });
 }
 
-func routeMe(service *appservice.AppService) http.HandlerFunc {
+func routeMe(_ *appservice.AppService) http.HandlerFunc {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
         defer r.Body.Close();
 
@@ -155,13 +165,16 @@ func routeMe(service *appservice.AppService) http.HandlerFunc {
 }
 
 // TODO: move all bellow to middlewares package?
+//
+// TODO: better params design
 func applyMiddleware (
     handler http.HandlerFunc,
     middlewares []middleware.Middleware,
+    additions ...middleware.Middleware,
 ) http.HandlerFunc {
     wrapped := handler;
 
-    for _, m := range middlewares {
+    for _, m := range append(middlewares, additions...) {
         wrapped = m(wrapped);
     }
 

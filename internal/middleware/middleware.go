@@ -79,3 +79,51 @@ func JWTAutherMiddleware(next http.HandlerFunc) http.HandlerFunc {
         next.ServeHTTP(w, r);
     });
 }
+
+func POSTHandlerMiddleware(next http.HandlerFunc) http.HandlerFunc {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != "POST" {
+            error := responses.NewErrorResponse("Only POST method allowed");
+            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
+            return;
+        }
+
+        next.ServeHTTP(w, r);
+    });
+}
+
+func GETHandlerMiddleware (next http.HandlerFunc) http.HandlerFunc {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != "GET" {
+            error := responses.NewErrorResponse("Only GET method allowed");
+            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
+            return;
+        }
+
+        next.ServeHTTP(w, r);
+    });
+}
+
+func PUTHandlerMiddleware (next http.HandlerFunc) http.HandlerFunc {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != "PUT" {
+            error := responses.NewErrorResponse("Only PUT method allowed");
+            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
+            return;
+        }
+
+        next.ServeHTTP(w, r);
+    });
+}
+
+func DELETEHandlerMiddleware (next http.HandlerFunc) http.HandlerFunc {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        if r.Method != "DELETE" {
+            error := responses.NewErrorResponse("Only DELETE method allowed");
+            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
+            return;
+        }
+
+        next.ServeHTTP(w, r);
+    });
+}

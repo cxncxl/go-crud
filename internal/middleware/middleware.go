@@ -78,32 +78,30 @@ func LoggerMiddleware(next http.HandlerFunc) http.HandlerFunc {
 
 func JWTAutherMiddleware(next http.HandlerFunc) http.HandlerFunc {
     return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        auth := r.Header.Get("Authorization");
-        if auth == "" {
+        throwUnauthorized := func() {
             error := responses.NewErrorResponse("unauthorized");
             w.Header().Add("Content-Type", "application/json");
             w.WriteHeader(http.StatusUnauthorized);
             w.Write(error.Json());
+        }
+
+        auth := r.Header.Get("Authorization");
+        if auth == "" {
+            throwUnauthorized();
             return;
         }
 
         auth = strings.TrimSpace(auth);
         parts := strings.Split(auth, " ");
         if len(parts) < 2 {
-            error := responses.NewErrorResponse("unauthorized");
-            w.Header().Add("Content-Type", "application/json");
-            w.WriteHeader(http.StatusUnauthorized);
-            w.Write(error.Json());
+            throwUnauthorized();
             return;
         }
 
         token := parts[1];
         claims, err := auth_helpers.DecodeJWT(token);
         if err != nil && errors.Is(err, auth_helpers.InvalidJwtError{}) {
-            error := responses.NewErrorResponse("unauthorized");
-            w.Header().Add("Content-Type", "application/json");
-            w.WriteHeader(http.StatusUnauthorized);
-            w.Write(error.Json());
+            throwUnauthorized();
             return;
         }
 

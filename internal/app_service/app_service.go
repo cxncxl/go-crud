@@ -1,19 +1,31 @@
 package appservice
 
 import (
+	"context"
+
 	"gorm.io/gorm"
 
 	"github.com/cxcnxl/go-crud/internal/auth_helpers"
 	"github.com/cxcnxl/go-crud/internal/dto"
 	"github.com/cxcnxl/go-crud/internal/models"
+	"github.com/cxcnxl/go-crud/internal/redis"
 )
 
 type AppService struct {
 	db *gorm.DB
+    redis *redis.RedisWrapper
+    ctx context.Context
 }
 
-func NewAppService(db *gorm.DB) *AppService {
-    return &AppService{ db };
+func NewAppService(
+    db *gorm.DB,
+    redis *redis.RedisWrapper,
+) *AppService {
+    return &AppService{
+        db,
+        redis,
+        context.Background(),
+    };
 }
 
 func (self *AppService) CreateUser(data dto.CreateUserDto) (models.User, error) {
@@ -48,6 +60,11 @@ func (self *AppService) LoginUser(data dto.PostLoginDto) (models.User, error) {
         Or(models.User{Username: data.Username}).
         First(&user);
 
+    loginBlocked := self.getLoginBlocked(user);
+    if loginBlocked == true {
+        return user, LoginBlockedError{};
+    }
+
     if result.Error != nil {
         return user, result.Error;
     }
@@ -61,6 +78,7 @@ func (self *AppService) LoginUser(data dto.PostLoginDto) (models.User, error) {
     }
 
     if passwordValid == false {
+        self.handleInvalidPasswordAttempt(user);
         return user, InvalidPasswordError{};
     }
 
@@ -106,6 +124,49 @@ func (self *AppService) GetUserById(id uint) (models.User, error) {
     return user, nil;
 }
 
+// TODO: move redis operations into redis service
+//
+// TODO: create const keys for redis
+func (self *AppService) handleInvalidPasswordAttempt(
+    user models.User,
+) {
+    loginAttempts, err := self.redis.GetLoginAttempts(user.ID);
+    if err != nil {
+        panic(err);
+    }
+
+    loginAttempts += 1;
+
+    if loginAttempts >= 3 {
+        self.setLoginBlocked(user);
+    }
+
+    err = self.redis.SetLoginAttempts(user.ID, loginAttempts);
+    if err != nil {
+        panic(err);
+    }
+}
+
+func (self *AppService) setLoginBlocked(
+    user models.User,
+) {
+    err := self.redis.SetLoginBlocked(user.ID, true);
+    if err != nil {
+        panic(err);
+    }
+}
+
+func (self *AppService) getLoginBlocked(
+    user models.User,
+) bool {
+    blocked, err := self.redis.GetLoginBlocked(user.ID);
+    if err != nil {
+        panic(err);
+    }
+
+    return blocked;
+}
+
 type DuplicateUserEmailError struct {}
 func (self DuplicateUserEmailError) Error() string {
     return "duplicate_user_email";
@@ -119,4 +180,9 @@ func (self DuplicateUserUsernameError) Error() string {
 type InvalidPasswordError struct {}
 func (self InvalidPasswordError) Error() string {
     return "invalid_password";
+}
+
+type LoginBlockedError struct {}
+func (self LoginBlockedError) Error() string {
+    return "login_blocked";
 }

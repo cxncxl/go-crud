@@ -15,11 +15,12 @@ import (
 	"github.com/cxcnxl/go-crud/internal/dto"
 	"github.com/cxcnxl/go-crud/internal/middleware"
 	"github.com/cxcnxl/go-crud/internal/responses"
+	"github.com/cxcnxl/go-crud/internal/redis"
 )
 
-func NewRouter(db *gorm.DB) *MethodHandler {
+func NewRouter(db *gorm.DB, redis *redis.RedisWrapper) *MethodHandler {
     mux := http.NewServeMux();
-    service := appservice.NewAppService(db);
+    service := appservice.NewAppService(db, redis);
     methodHandler := NewMethodHandler(mux);
 
     methodHandler.HandleFunc(
@@ -118,7 +119,7 @@ func routeLogin(service *appservice.AppService) http.HandlerFunc {
 
         user, err := service.LoginUser(data);
         if err != nil {
-            error := responses.NewErrorResponse("unauthorized");
+            error := responses.NewErrorResponse(err.Error());
             http.Error(w, error.JsonString(), http.StatusUnauthorized);
             return;
         }
@@ -179,8 +180,11 @@ func (self *MethodHandler) HandleFunc(
         if r.Method == method {
             wrapped(w, r);
         } else {
+            // TODO: this avoides logger and restore middlewares
             error := responses.NewErrorResponse("Method not allowed");
-            http.Error(w, error.JsonString(), http.StatusMethodNotAllowed);
+            w.Header().Add("Content-Type", "application/json");
+            w.WriteHeader(http.StatusMethodNotAllowed);
+            w.Write(error.Json());
         }
     });
 }

@@ -5,19 +5,23 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/cxcnxl/go-crud/internal/routes"
+	redisw "github.com/cxcnxl/go-crud/internal/redis"
 )
 
 func main() {
     parseDotEnv();
     db := connectToDb();
-    startServer(db);
+    rdb := connectToRedis();
+    startServer(db, rdb);
 }
 
 // prepares .env file so it can be read via os.Getenv or panics
@@ -49,9 +53,24 @@ func connectToDb() *gorm.DB {
     return db;
 }
 
+func connectToRedis() *redisw.RedisWrapper {
+    redisDb, err := strconv.Atoi(os.Getenv("REDIS_DB"));
+    if err != nil {
+        panic(err);
+    }
+
+    rdb := redis.NewClient(&redis.Options{
+        Addr:       os.Getenv("REDIS_DB_URL"),
+        Password:   os.Getenv("REDIS_DB_PASSWORD"), 
+        DB:         redisDb,
+    });
+
+    return redisw.NewRedisWrapper(rdb);
+}
+
 // starts http server or panics
-func startServer(db *gorm.DB) {
-    router := routes.NewRouter(db);
+func startServer(db *gorm.DB, rdb *redisw.RedisWrapper) {
+    router := routes.NewRouter(db, rdb);
 
     const port int = 8080;
     addr := fmt.Sprintf(":%d", port);
